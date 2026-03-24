@@ -1,0 +1,10 @@
+{
+  "sites": {
+    "youtube": "https://youtube.com",
+    "google": "https://google.com",
+    "github": "https://github.com",
+    "linkedin": "https://linkedin.com",
+    "movies": "https://fmhy.net",
+    "pesu": "http://192.168.254.1:8090/httpclient.html"
+  }
+}
