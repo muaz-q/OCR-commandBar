@@ -6,3 +6,4 @@ open youtube for me
 show me something on youtube
 homepage of linkedin
 wifi
+screenshot
