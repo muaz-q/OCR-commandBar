@@ -1,6 +1,6 @@
 # CommandBar AI
 
-A keyboard-driven desktop assistant that enables fast command execution, browser automation, and on-screen text extraction using OCR — all without leaving your workflow.
+> A Spotlight-like command bar for Windows that lets you search, open apps, and extract text from anywhere on your screen using OCR — all with a single shortcut.
 
 ---
 
@@ -8,13 +8,11 @@ A keyboard-driven desktop assistant that enables fast command execution, browser
 
 CommandBar AI is designed to reduce context switching by allowing users to perform common tasks directly from a lightweight command interface.
 
-With a single hotkey, users can:
+## 🔥 What Makes This Different
 
-* Open websites
-* Perform searches
-* Extract text from screen regions
-* Manage recent commands
-
+- Combines command launcher + OCR in one tool
+- Works globally with keyboard shortcut
+- Zero context switching
 ---
 
 ## 🚀 Features
@@ -24,6 +22,20 @@ With a single hotkey, users can:
 * Trigger using: `Ctrl + \`
 * Minimal, distraction-free UI
 * Keyboard-first interaction
+
+ On pressing "ctrl + \ " 
+ 
+<img width="2081" height="1356" alt="image" src="https://github.com/user-attachments/assets/0f77c919-3c51-4e08-826a-e52cedc3b817" />
+
+
+Running the `extract` command allows you to select any region on your screen. Once the text is extracted, you receive a notification and the content is automatically copied to your clipboard.
+
+This is ideal for quickly capturing text without saving or sharing full screenshots.
+
+<img width="2027" height="1231" alt="image" src="https://github.com/user-attachments/assets/d2d30666-c765-47ec-a4f5-d04675449ffb" />
+
+
+
 
 ---
 
