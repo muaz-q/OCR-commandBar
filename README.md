@@ -1,4 +1,4 @@
-# CommandBar AI
+# NeuraBar AI
 
 > A Spotlight-like command bar for Windows that lets you search, open apps, and extract text from anywhere on your screen using OCR — all with a single shortcut.
 
@@ -6,7 +6,7 @@
 
 ## ✨ Overview
 
-CommandBar AI is designed to reduce context switching by allowing users to perform common tasks directly from a lightweight command interface.
+NeuraBar AI is designed to reduce context switching by allowing users to perform common tasks directly from a lightweight command interface.
 
 ## 🔥 What Makes This Different
 
