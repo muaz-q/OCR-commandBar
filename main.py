@@ -1,4 +1,5 @@
 import os
+import google.generativeai as genai
 import json
 from datetime import datetime
 import webbrowser
@@ -8,7 +9,18 @@ import pyautogui
 import pytesseract
 import pyperclip
 from plyer import notification
+from dotenv import load_dotenv
+import pyttsx3 
+import threading
+import re 
 
+#handling the api key
+
+load_dotenv()
+api_key = os.getenv("GEMINI_API_KEY")
+if not api_key :
+    raise ValueError("api key was not found")
+genai.configure(api_key=api_key)
 
 app_root = tk.Tk()
 app_root.withdraw() 
@@ -98,19 +110,15 @@ def show_command_bar():
         font=("Segoe UI", 10)
     ).pack(anchor="w", padx=10)
 
-# if no history is available
-
     if not history:
         tk.Label(
-        suggestion_frame,
-        text="No recent commands",
-        fg="#64748b",
-        bg="#1e293b",
-        font=("Segoe UI", 10)
-    ).pack(anchor="w", padx=10)
+            suggestion_frame,
+            text="No recent commands",
+            fg="#64748b",
+            bg="#1e293b",
+            font=("Segoe UI", 10)
+        ).pack(anchor="w", padx=10)
 
-
-    # History items
     for text in history:
         item = tk.Label(
             suggestion_frame,
@@ -124,11 +132,9 @@ def show_command_bar():
         )
         item.pack(fill="x", pady=2)
 
-        # Hover effect
         item.bind("<Enter>", lambda e: e.widget.config(bg="#334155"))
         item.bind("<Leave>", lambda e: e.widget.config(bg="#1e293b"))
 
-        # Click to autofill
         def on_click(e, cmd=text):
             entry.delete(0, tk.END)
             entry.insert(0, cmd)
@@ -149,10 +155,16 @@ def show_command_bar():
         if command and command != "type a command...":
             save_to_history(command)
 
-        if command in ["extract", "read", "copy text from image"]:
+        # 🔥 FIXED BLOCK
+        if "extract" in command:
             root.destroy()
-            extract_text_from_region()
-            return
+
+            if "summarise" in command:
+                extract_text_from_region(mode="summarise")
+            else:
+                extract_text_from_region(mode="normal")
+
+            return  # 🔥 IMPORTANT FIX
 
         handle_command(command)
         root.destroy()
@@ -160,6 +172,7 @@ def show_command_bar():
     entry.bind("<Return>", handle_enter)
 
     root.mainloop()
+
 # commands
 
 def load_config():
@@ -258,7 +271,14 @@ def select_region():
     return region
 
 # file system
-def save_screenshot(image):
+
+# this is use to name the screenshots based of their intent
+def clean_text(text):
+    text = text.lower()
+    text = re.sub(r'[^a-z0-9]+', '_', text)
+    return text[:20]  
+
+def save_screenshot(image , tag="capture" , context =""):
     base_folder = "screenshots"
 
     now = datetime.now()
@@ -269,17 +289,23 @@ def save_screenshot(image):
     os.makedirs(folder_path, exist_ok=True)
 
     timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
-    file_path = os.path.join(folder_path, f"screenshot_{timestamp}.png")
+    context_clean = clean_text(context) if context else ""
+
+    if context_clean :
+        filename = f"{tag}_{context_clean}_{timestamp}.png"
+    else :
+        filename = f"{tag}_{timestamp}.png"
+    
+    file_path = os.path.join(folder_path, filename)
 
     image.save(file_path)
     print(f"Saved at: {file_path}")
 
-# working with ocr 
+# OCR + AI
 
-def extract_text_from_region():
+def extract_text_from_region(mode= "normal"):
     region = select_region()
 
-    # Safety check
     if not region or "x1" not in region:
         print("No region selected")
         return
@@ -298,16 +324,19 @@ def extract_text_from_region():
 
     screenshot = pyautogui.screenshot(region=(left, top, width, height))
 
-    # Save screenshot
     save_screenshot(screenshot)
 
-    # making ocr more accurate
     screenshot = screenshot.convert("L")
 
     text = pytesseract.image_to_string(screenshot)
 
     if not text.strip():
         print("No text detected")
+        return
+
+    if mode == "summarise":
+        summary = summarize_text(text)
+        show_summary_popup(summary)
         return
 
     pyperclip.copy(text)
@@ -323,7 +352,127 @@ def show_toast(message="Copied to clipboard"):
         timeout=2
     )
 
-# main thingy
+
+# reading the text section
+engine =  pyttsx3.init()
+
+def speak_text(text):
+    try : 
+        engine.stop()
+        engine.setProperty('rate', 170)
+        engine.setProperty('volume', 1.0)
+
+        engine.say(text)
+        engine.runAndWait()
+    except Exception as e : 
+        print("TTS Error:",e)
+
+# prevent ui from freezing
+def speak_async(text):
+    threading.Thread(target=speak_text, args=(text,), daemon=True).start()
+
+def summarize_text(text):
+    try:
+        model = genai.GenerativeModel("gemini-1.5-flash")
+
+        text = text[:3000]
+
+        prompt = f"""
+        Summarize the following text into 3-4 clear bullet points:
+
+        {text}
+        """
+
+        response = model.generate_content(prompt)
+
+        return response.text.strip()
+
+    except Exception as e:
+        return f"Error generating summary: {str(e)}"
+
+def show_summary_popup(summary):
+    win = tk.Tk()
+    win.title("AI Summary")
+    win.geometry("1500x1300")
+    win.configure(bg="#0f172a")
+
+    title = tk.Label(
+        win,
+        text="AI Summary",
+        font=("Segoe UI", 14, "bold"),
+        bg="#0f172a",
+        fg="white"
+    )
+    title.pack(pady=(10, 5))
+
+    text_box = tk.Text(
+        win,
+        wrap="word",
+        font=("Segoe UI", 12),
+        bg="#1e293b",
+        fg="white",
+        insertbackground="white",
+        bd=0
+    )
+    text_box.insert("1.0", summary)
+    text_box.config(state="disabled")
+    text_box.pack(expand=True, fill="both", padx=15, pady=10)
+
+    def copy_summary():
+        pyperclip.copy(summary)
+        show_toast("Summary copied!")
+
+    copy_btn = tk.Button(
+        win,
+        text="Copy",
+        command=copy_summary,
+        bg="#334155",
+        fg="white",
+        bd=0,
+        padx=10,
+        pady=5
+    )
+
+    def speak_summary():
+        speak_async(summary)
+
+    speak_btn = tk.Button(
+        win,
+        text="🔊 Read Aloud",
+        command=speak_summary,
+        bg="#334155",
+        fg="white",
+        bd=0,
+        padx=10,
+        pady=5
+    )
+
+    def stop_speaking():
+        engine.stop()
+
+    stop_btn = tk.Button(
+        win,
+        text="⏹ Stop",
+        command=stop_speaking,
+        bg="#334155",
+        fg="white",
+        bd=0,
+        padx=10,
+        pady=5
+    )
+
+    btn_frame = tk.Frame(win, bg="#0f172a")
+    btn_frame.pack(pady=10)
+
+    copy_btn.pack(in_=btn_frame, side="left", padx=5)
+    speak_btn.pack(in_=btn_frame, side="left", padx=5)
+    stop_btn.pack(in_=btn_frame, side="left", padx=5)
+
+    win.bind("<Escape>", lambda e: win.destroy())
+    win.mainloop()
+
+# main
+
 is_open = False
 
 def exit_program():
