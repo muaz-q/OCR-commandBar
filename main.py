@@ -25,7 +25,7 @@ except Exception:
     print("⚠️ Tesseract not found. Check PATH or installation.")
 
 
-# ── Ollama keepalive (runs once at startup in background) ──────────────────────
+# ── Ollama keepalive (runs once at startup in background) 
 def warm_up_ollama():
     try:
         requests.post(
@@ -33,14 +33,14 @@ def warm_up_ollama():
             json={"model": "phi3:mini", "prompt": "hi", "stream": False},
             timeout=30
         )
-        print("✅ Ollama warmed up")
+        print("warming up ollama")
     except Exception:
         pass
 
 threading.Thread(target=warm_up_ollama, daemon=True).start()
 
 
-# ── Command bar history ────────────────────────────────────────────────────────
+# ── Command bar history
 
 def save_to_history(command):
     if os.path.exists("history.txt"):
@@ -171,7 +171,7 @@ def show_command_bar():
     root.mainloop()
 
 
-# ── Commands ───────────────────────────────────────────────────────────────────
+# ── Commands
 
 def load_config():
     try:
@@ -223,8 +223,7 @@ def handle_command(command):
         webbrowser.open(f"https://www.google.com/search?q={command}")
 
 
-# ── Snipping tool ──────────────────────────────────────────────────────────────
-
+# ── Snipping tool
 def select_region():
     region = {}
 
@@ -271,7 +270,7 @@ def select_region():
     return region
 
 
-# ── File system ────────────────────────────────────────────────────────────────
+# ── File system
 
 def clean_text(text):
     text = text.lower()
@@ -294,7 +293,7 @@ def save_screenshot(image, tag="capture", context=""):
     print(f"Saved at: {file_path}")
 
 
-# ── OCR ────────────────────────────────────────────────────────────────────────
+# ── OCR 
 
 def extract_text_from_region(mode="normal"):
     region = select_region()
@@ -342,7 +341,7 @@ def show_toast(message="Copied to clipboard"):
     )
 
 
-# ── TTS ────────────────────────────────────────────────────────────────────────
+# ── TTS 
 
 engine = pyttsx3.init()
 
@@ -362,7 +361,7 @@ def speak_async(text):
     threading.Thread(target=speak_text, args=(text,), daemon=True).start()
 
 
-# ── Ollama (streaming) ─────────────────────────────────────────────────────────
+# ── Ollama (streaming)
 
 def summarize_text_stream(text, on_chunk):
     """Calls Ollama with stream=True and fires on_chunk(str) for every token."""
@@ -385,7 +384,7 @@ def summarize_text_stream(text, on_chunk):
         on_chunk(f"\n\n[Error: {e}]")
 
 
-# ── Summary popup (streams tokens in real-time) ────────────────────────────────
+# ── Summary popup (streams tokens in real-time)
 
 def show_summary_popup_streaming(text_to_summarize):
     win = tk.Tk()
@@ -440,7 +439,7 @@ def show_summary_popup_streaming(text_to_summarize):
         daemon=True
     ).start()
 
-    # ── Buttons ────────────────────────────────────────────────────────────────
+    # ── Buttons
 
     def copy_summary():
         pyperclip.copy("".join(summary_buffer))
@@ -475,8 +474,7 @@ def show_summary_popup_streaming(text_to_summarize):
     win.mainloop()
 
 
-# ── Main ───────────────────────────────────────────────────────────────────────
-
+# ── Main
 is_open = False
 
 
