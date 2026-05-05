@@ -1,5 +1,4 @@
 import os
-import google.generativeai as genai
 import json
 from datetime import datetime
 import webbrowser
@@ -10,20 +9,14 @@ import pytesseract
 import pyperclip
 from plyer import notification
 from dotenv import load_dotenv
-import pyttsx3 
+import pyttsx3
 import threading
-import re 
+import requests
+import re
 
-#handling the api key
-
-load_dotenv()
-api_key = os.getenv("GEMINI_API_KEY")
-if not api_key :
-    raise ValueError("api key was not found")
-genai.configure(api_key=api_key)
 
 app_root = tk.Tk()
-app_root.withdraw() 
+app_root.withdraw()
 
 # Tesseract path
 try:
@@ -31,13 +24,28 @@ try:
 except Exception:
     print("⚠️ Tesseract not found. Check PATH or installation.")
 
-#command bar
+
+# ── Ollama keepalive (runs once at startup in background) ──────────────────────
+def warm_up_ollama():
+    try:
+        requests.post(
+            "http://localhost:11434/api/generate",
+            json={"model": "phi3:mini", "prompt": "hi", "stream": False},
+            timeout=30
+        )
+        print("✅ Ollama warmed up")
+    except Exception:
+        pass
+
+threading.Thread(target=warm_up_ollama, daemon=True).start()
+
+
+# ── Command bar history ────────────────────────────────────────────────────────
 
 def save_to_history(command):
     if os.path.exists("history.txt"):
         with open("history.txt", "r", encoding="utf-8") as f:
             lines = [l.strip() for l in f.readlines()]
-
         if command in lines:
             return
 
@@ -48,11 +56,10 @@ def save_to_history(command):
 def load_history():
     if not os.path.exists("history.txt"):
         return []
-
     with open("history.txt", "r", encoding="utf-8") as f:
         lines = f.readlines()
-
     return [line.strip() for line in lines if line.strip()][-2:][::-1]
+
 
 def show_command_bar():
     root = tk.Tk()
@@ -69,11 +76,9 @@ def show_command_bar():
 
     root.geometry(f"{width}x{height}+{x}+{y}")
 
-    # Main container
     main_frame = tk.Frame(root, bg="#1e293b")
     main_frame.pack(fill="both", expand=True, padx=15, pady=15)
 
-    # Entry box
     entry = tk.Entry(
         main_frame,
         font=("Segoe UI", 16),
@@ -84,7 +89,6 @@ def show_command_bar():
     )
     entry.pack(fill="x", padx=15, pady=10)
 
-    # Placeholder
     entry.insert(0, "Type a command...")
     entry.config(fg="#94a3b8")
 
@@ -95,13 +99,11 @@ def show_command_bar():
 
     entry.bind("<FocusIn>", on_focus_in)
 
-    # Suggestion panel
     suggestion_frame = tk.Frame(main_frame, bg="#1e293b")
     suggestion_frame.pack(fill="both", expand=True, padx=10, pady=5)
 
     history = load_history()
 
-    # Title
     tk.Label(
         suggestion_frame,
         text="Recent",
@@ -142,7 +144,6 @@ def show_command_bar():
         item.bind("<Button-1>", on_click)
 
     root.after(10, lambda: entry.focus())
-
     root.bind_all("<Escape>", lambda e: root.destroy())
 
     def handle_enter(event):
@@ -155,25 +156,22 @@ def show_command_bar():
         if command and command != "type a command...":
             save_to_history(command)
 
-        # 🔥 FIXED BLOCK
         if "extract" in command:
             root.destroy()
-
             if "summarise" in command:
                 extract_text_from_region(mode="summarise")
             else:
                 extract_text_from_region(mode="normal")
-
-            return  # 🔥 IMPORTANT FIX
+            return
 
         handle_command(command)
         root.destroy()
 
     entry.bind("<Return>", handle_enter)
-
     root.mainloop()
 
-# commands
+
+# ── Commands ───────────────────────────────────────────────────────────────────
 
 def load_config():
     try:
@@ -182,6 +180,7 @@ def load_config():
     except Exception as e:
         print("⚠️ Error loading config.json:", e)
         return {"sites": {}}
+
 
 shortcuts = {
     "yt": "youtube",
@@ -193,6 +192,7 @@ shortcuts = {
 config = load_config()
 sites = config.get("sites", {})
 
+
 def handle_command(command):
     command = command.lower().strip()
 
@@ -201,7 +201,6 @@ def handle_command(command):
 
     if command.startswith("open"):
         site = command.replace("open", "").strip()
-
         if site in sites:
             webbrowser.open(sites[site])
         else:
@@ -223,7 +222,8 @@ def handle_command(command):
 
         webbrowser.open(f"https://www.google.com/search?q={command}")
 
-# snipping tool
+
+# ── Snipping tool ──────────────────────────────────────────────────────────────
 
 def select_region():
     region = {}
@@ -270,40 +270,33 @@ def select_region():
 
     return region
 
-# file system
 
-# this is use to name the screenshots based of their intent
+# ── File system ────────────────────────────────────────────────────────────────
+
 def clean_text(text):
     text = text.lower()
     text = re.sub(r'[^a-z0-9]+', '_', text)
-    return text[:20]  
+    return text[:20]
 
-def save_screenshot(image , tag="capture" , context =""):
+
+def save_screenshot(image, tag="capture", context=""):
     base_folder = "screenshots"
-
     now = datetime.now()
-    year = str(now.year)
-    month = now.strftime("%B")
-
-    folder_path = os.path.join(base_folder, year, month)
+    folder_path = os.path.join(base_folder, str(now.year), now.strftime("%B"))
     os.makedirs(folder_path, exist_ok=True)
 
     timestamp = now.strftime("%Y-%m-%d_%H-%M-%S")
     context_clean = clean_text(context) if context else ""
+    filename = f"{tag}_{context_clean}_{timestamp}.png" if context_clean else f"{tag}_{timestamp}.png"
 
-    if context_clean :
-        filename = f"{tag}_{context_clean}_{timestamp}.png"
-    else :
-        filename = f"{tag}_{timestamp}.png"
-    
     file_path = os.path.join(folder_path, filename)
-
     image.save(file_path)
     print(f"Saved at: {file_path}")
 
-# OCR + AI
 
-def extract_text_from_region(mode= "normal"):
+# ── OCR ────────────────────────────────────────────────────────────────────────
+
+def extract_text_from_region(mode="normal"):
     region = select_region()
 
     if not region or "x1" not in region:
@@ -323,11 +316,8 @@ def extract_text_from_region(mode= "normal"):
         return
 
     screenshot = pyautogui.screenshot(region=(left, top, width, height))
-
     save_screenshot(screenshot)
-
     screenshot = screenshot.convert("L")
-
     text = pytesseract.image_to_string(screenshot)
 
     if not text.strip():
@@ -335,15 +325,14 @@ def extract_text_from_region(mode= "normal"):
         return
 
     if mode == "summarise":
-        summary = summarize_text(text)
-        show_summary_popup(summary)
+        show_summary_popup_streaming(text)
         return
 
     pyperclip.copy(text)
     show_toast("Text copied!")
-
     print("\nExtracted Text:\n")
     print(text)
+
 
 def show_toast(message="Copied to clipboard"):
     notification.notify(
@@ -353,57 +342,65 @@ def show_toast(message="Copied to clipboard"):
     )
 
 
-# reading the text section
-engine =  pyttsx3.init()
+# ── TTS ────────────────────────────────────────────────────────────────────────
+
+engine = pyttsx3.init()
+
 
 def speak_text(text):
-    try : 
+    try:
         engine.stop()
         engine.setProperty('rate', 170)
         engine.setProperty('volume', 1.0)
-
         engine.say(text)
         engine.runAndWait()
-    except Exception as e : 
-        print("TTS Error:",e)
+    except Exception as e:
+        print("TTS Error:", e)
 
-# prevent ui from freezing
+
 def speak_async(text):
     threading.Thread(target=speak_text, args=(text,), daemon=True).start()
 
-def summarize_text(text):
+
+# ── Ollama (streaming) ─────────────────────────────────────────────────────────
+
+def summarize_text_stream(text, on_chunk):
+    """Calls Ollama with stream=True and fires on_chunk(str) for every token."""
+    text = text[:1500]
+    prompt = f"Summarize this clearly and concisely:\n\n{text}"
+
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
-
-        text = text[:3000]
-
-        prompt = f"""
-        Summarize the following text into 3-4 clear bullet points:
-
-        {text}
-        """
-
-        response = model.generate_content(prompt)
-
-        return response.text.strip()
-
+        with requests.post(
+            "http://localhost:11434/api/generate",
+            json={"model": "phi3:mini", "prompt": prompt, "stream": True},
+            stream=True,
+            timeout=60
+        ) as r:
+            for line in r.iter_lines():
+                if line:
+                    chunk = json.loads(line).get("response", "")
+                    if chunk:
+                        on_chunk(chunk)
     except Exception as e:
-        return f"Error generating summary: {str(e)}"
+        on_chunk(f"\n\n[Error: {e}]")
 
-def show_summary_popup(summary):
+
+# ── Summary popup (streams tokens in real-time) ────────────────────────────────
+
+def show_summary_popup_streaming(text_to_summarize):
     win = tk.Tk()
     win.title("AI Summary")
-    win.geometry("1500x1300")
+    win.geometry("700x420")
     win.configure(bg="#0f172a")
 
-    title = tk.Label(
+    title_lbl = tk.Label(
         win,
         text="AI Summary",
         font=("Segoe UI", 14, "bold"),
         bg="#0f172a",
         fg="white"
     )
-    title.pack(pady=(10, 5))
+    title_lbl.pack(pady=(10, 5))
 
     text_box = tk.Text(
         win,
@@ -414,83 +411,93 @@ def show_summary_popup(summary):
         insertbackground="white",
         bd=0
     )
-    text_box.insert("1.0", summary)
+    text_box.insert("1.0", "Summarizing…")
     text_box.config(state="disabled")
     text_box.pack(expand=True, fill="both", padx=15, pady=10)
 
+    # Collect full summary for copy / TTS
+    summary_buffer = []
+    first_chunk = [True]
+
+    def on_chunk(chunk):
+        summary_buffer.append(chunk)
+
+        def update():
+            text_box.config(state="normal")
+            if first_chunk[0]:
+                text_box.delete("1.0", "end")
+                first_chunk[0] = False
+            text_box.insert("end", chunk)
+            text_box.see("end")
+            text_box.config(state="disabled")
+
+        win.after(0, update)
+
+    # Start streaming in background thread
+    threading.Thread(
+        target=summarize_text_stream,
+        args=(text_to_summarize, on_chunk),
+        daemon=True
+    ).start()
+
+    # ── Buttons ────────────────────────────────────────────────────────────────
+
     def copy_summary():
-        pyperclip.copy(summary)
+        pyperclip.copy("".join(summary_buffer))
         show_toast("Summary copied!")
 
-    copy_btn = tk.Button(
-        win,
-        text="Copy",
-        command=copy_summary,
-        bg="#334155",
-        fg="white",
-        bd=0,
-        padx=10,
-        pady=5
-    )
-
     def speak_summary():
-        speak_async(summary)
-
-    speak_btn = tk.Button(
-        win,
-        text="🔊 Read Aloud",
-        command=speak_summary,
-        bg="#334155",
-        fg="white",
-        bd=0,
-        padx=10,
-        pady=5
-    )
+        speak_async("".join(summary_buffer))
 
     def stop_speaking():
         engine.stop()
 
-    stop_btn = tk.Button(
-        win,
-        text="⏹ Stop",
-        command=stop_speaking,
-        bg="#334155",
-        fg="white",
-        bd=0,
-        padx=10,
-        pady=5
-    )
-
     btn_frame = tk.Frame(win, bg="#0f172a")
     btn_frame.pack(pady=10)
 
-    copy_btn.pack(in_=btn_frame, side="left", padx=5)
-    speak_btn.pack(in_=btn_frame, side="left", padx=5)
-    stop_btn.pack(in_=btn_frame, side="left", padx=5)
+    for label, cmd in [
+        ("Copy", copy_summary),
+        ("🔊 Read Aloud", speak_summary),
+        ("⏹ Stop", stop_speaking),
+    ]:
+        tk.Button(
+            btn_frame,
+            text=label,
+            command=cmd,
+            bg="#334155",
+            fg="white",
+            bd=0,
+            padx=10,
+            pady=5
+        ).pack(side="left", padx=5)
 
     win.bind("<Escape>", lambda e: win.destroy())
     win.mainloop()
 
-# main
+
+# ── Main ───────────────────────────────────────────────────────────────────────
 
 is_open = False
+
 
 def exit_program():
     print("Program terminated (Ctrl + Q pressed)")
     keyboard.unhook_all()
     os._exit(0)
 
+
 def launch_bar():
     global is_open
     if is_open:
         return
-
     is_open = True
     show_command_bar()
     is_open = False
 
+
 keyboard.add_hotkey("ctrl+\\", launch_bar)
 keyboard.add_hotkey("ctrl+q", exit_program)
+keyboard.add_hotkey("ctrl+shift+s", lambda: extract_text_from_region(mode="summarise"))
 
-print("Running... Press Ctrl + \\ to open | Ctrl + Q to exit")
+print("Running... Press Ctrl + \\ to open | Ctrl + Q to exit | Ctrl + Shift + S to summarize")
 keyboard.wait()
